@@ -17,6 +17,7 @@ from abc import ABC, abstractmethod
 
 import torch
 from torch import nn
+from torch.nn import functional as F
 from torch.distributions.relaxed_bernoulli import RelaxedBernoulli
 
 from .config import PolyConfig
@@ -28,11 +29,15 @@ EPS = 1e-12
 def get_router(poly_config: PolyConfig) -> nn.Module:
     if poly_config.poly_type == "poly":
         return PolyRouter(poly_config)
+    elif poly_config.poly_type == "cpoly":
+        return CPolyRouter(poly_config)
+    elif poly_config.poly_type == "cpoly_simple":
+        return CPolySimpleRouter(poly_config)
     else:
         raise ValueError(
             f"Unsupported poly_type: {poly_config.poly_type}. "
             "Currently, only the following types are supported: "
-            "`poly`."
+            "`poly`, `cpoly`, `cpoly_simple`."
         )
 
 
@@ -81,4 +86,28 @@ class PolyRouter(Router):
 
         module_weights = module_logits / (module_logits.sum(dim=-1, keepdim=True) + EPS)
 
+        return module_weights
+
+
+class CPolySimpleRouter(PolyRouter):
+    def forward(self, task_ids: torch.Tensor, input_ids: torch.Tensor):
+        module_weights = super().forward(task_ids, input_ids)
+        c_module_weights = F.one_hot(task_ids, num_classes=self.n_tasks).unsqueeze(1).expand((1, self.n_splits, 1))
+        module_weights = torch.cat((module_weights, c_module_weights), dim=-1)
+        return module_weights
+
+
+class CPolyRouter(PolyRouter):
+    def __init__(self, poly_config: PolyConfig):
+        super().__init__(poly_config)
+        self.c_module_logits = nn.Parameter(torch.empty((self.n_tasks, self.n_tasks)))
+
+    def reset(self):
+        super().reset()
+        torch.nn.init.eye_(self.c_module_logits)
+
+    def forward(self, task_ids: torch.Tensor, input_ids: torch.Tensor):
+        module_weights = super().forward(task_ids, input_ids)
+        c_module_weights = self.c_module_logits[task_ids].unsqueeze(1).expand((1, self.n_splits, 1))
+        module_weights = torch.cat((module_weights, c_module_weights), dim=-1)
         return module_weights

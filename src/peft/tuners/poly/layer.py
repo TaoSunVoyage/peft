@@ -62,10 +62,16 @@ class PolyLayer(BaseTunerLayer):
         self.n_splits[adapter_name] = poly_config.n_splits
         self.poly_type[adapter_name] = poly_config.poly_type
 
+        total_skills = (
+            poly_config.n_skills
+            if "cpoly" not in poly_config.poly_type
+            else poly_config.n_skills + poly_config.n_tasks
+        )
+
         self.poly_lora_A[adapter_name] = nn.Parameter(
             torch.empty(
                 poly_config.n_splits,
-                poly_config.n_skills,
+                total_skills,
                 self.in_features // poly_config.n_splits,
                 poly_config.r,
             )
@@ -73,7 +79,7 @@ class PolyLayer(BaseTunerLayer):
         self.poly_lora_B[adapter_name] = nn.Parameter(
             torch.empty(
                 poly_config.n_splits,
-                poly_config.n_skills,
+                total_skills,
                 poly_config.r,
                 self.out_features // poly_config.n_splits,
             )

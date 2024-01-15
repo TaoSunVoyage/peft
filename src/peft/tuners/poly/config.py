@@ -66,9 +66,11 @@ class PolyConfig(PeftConfig):
             ),
         },
     )
-    poly_type: Literal["poly"] = field(
+    poly_type: Literal["poly", "cpoly", "cpoly_simple"] = field(
         default="poly",
-        metadata={"help": 'Type of Poly modules to be used. Currently only "poly" is supported.'},
+        metadata={
+            "help": 'Type of Poly modules to be used. Currently only "poly", "cpoly", "cpoly_simple" is supported.'
+        },
     )
     n_tasks: int = field(
         default=1,
